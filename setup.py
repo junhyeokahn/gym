@@ -32,6 +32,7 @@ setup(name='gym',
       zip_safe=False,
       install_requires=[
           'scipy', 'numpy>=1.10.4', 'requests>=2.0', 'six', 'pyglet>=1.2.0',
+          'paramiko', 'pyyaml', 'ruamel.yaml'
       ],
       extras_require=extras,
       package_data={'gym': [

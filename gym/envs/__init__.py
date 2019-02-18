@@ -47,6 +47,15 @@ register(
     reward_threshold=25.0,
 )
 
+# Custom
+# ----------------------------------------
+register(
+    id='DummyCartPole-v0',
+    entry_point='gym.envs.custom:DummyCartPoleEnv',
+    max_episode_steps=200, #does it matter?
+    reward_threshold=195.0, #does it matter?
+)
+
 # Classic
 # ----------------------------------------
 

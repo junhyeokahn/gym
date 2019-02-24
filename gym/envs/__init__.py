@@ -56,6 +56,13 @@ register(
     reward_threshold=195.0, #does it matter?
 )
 
+register(
+    id='MyBulletCartPole-v0',
+    entry_point='gym.envs.custom:MyBulletCartPoleEnv',
+    max_episode_steps=200, #does it matter?
+    reward_threshold=195.0, #does it matter?
+)
+
 # Classic
 # ----------------------------------------
 

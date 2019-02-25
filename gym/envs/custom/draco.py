@@ -133,29 +133,30 @@ class DracoEnv(gym.Env):
     if done:
         reward = 0.0
 
-    obs = base_pos + base_quat + q + base_vel + base_so3 + qdot + action
-    for i in len(self.feet):
+    obs = base_pos + base_quat + q + base_vel + base_so3 + qdot + clamped_action.tolist()
+    for i in range(len(b_contact)):
         obs = obs + contact_forces[i].tolist()
-    ## TODO
-    print("alive_bonus : {}, action_pen : {}, deviation_pen : {}, impact_pen : {}, total_rew : {}".format(alive_bonus, action_pen, deviation_pen, impact_pen, reward))
-    return np.array(obs), reward, False, {}
-    # return np.array(obs), reward, done, {}
+
+    # print("alive_bonus : {}, action_pen : {}, deviation_pen : {}, impact_pen : {}, total_rew : {}".format(alive_bonus, action_pen, deviation_pen, impact_pen, reward))
+    # return np.array(obs), reward, False, {}
+    return np.array(obs), reward, done, {}
 
   def get_contact_forces(self):
     b_contact = [False] * len(self.feet)
-    contact_forces = [np.zeros(shape(3, ))]*len(self.feet)
+    contact_forces = [np.zeros(shape=(3, ))]*len(self.feet)
 
     for foot_idx, foot_name in enumerate(self.feet):
         contact_result = p.getContactPoints(bodyA=self.draco,
                                             linkIndexA=self.link_list[foot_name])
-        if len(contact_result) == 0:
+        n_contact = len(contact_result)
+        if n_contact == 0:
             b_contact[foot_idx] = False
-            contact_forces[foot_idx] = np.zeros(shape(3,))
+            contact_forces[foot_idx] = np.zeros(shape=(3,))
         else:
             b_contact[foot_idx] = True
-            contact_forces[foot_idx] = np.array( [sum(contact_result[:, 10]),
-                                                  sum(contact_result[:, 12]),
-                                                  sum(contact_result[:, 9])] )
+            contact_forces[foot_idx] = np.array( [sum(contact_result[i][10] for i in range(n_contact)),
+                                                  sum(contact_result[i][12] for i in range(n_contact)),
+                                                  sum(contact_result[i][9] for i in range(n_contact))] )
     return b_contact, contact_forces
 
   def reset(self):
@@ -187,13 +188,11 @@ class DracoEnv(gym.Env):
     base_pos, base_quat, q, base_vel, base_so3, qdot = self.get_state()
     self.base_ini_pos = base_pos
 
-    actions = [0]*10
+    zero_actions = [0]*10
     b_contact, contact_forces = self.get_contact_forces()
-    obs = base_pos + base_quat + q + base_vel + base_so3 + qdot + actions
-    for i in len(self.feet):
+    obs = base_pos + base_quat + q + base_vel + base_so3 + qdot + zero_actions
+    for i in range(len(b_contact)):
         obs = obs + contact_forces[i].tolist()
-
-    __import__('ipdb').set_trace() ##TODO
 
     return np.array(obs)
 

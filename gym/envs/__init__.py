@@ -66,8 +66,8 @@ register(
 register(
     id='Draco-v0',
     entry_point='gym.envs.custom:DracoEnv',
-    max_episode_steps=2000, # TODO : should be fixed later
-    reward_threshold=195.0, # TODO : should be fixed later
+    max_episode_steps=2000,
+    reward_threshold=500.0,
 )
 
 # Classic

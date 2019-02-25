@@ -70,6 +70,13 @@ register(
     reward_threshold=500.0,
 )
 
+register(
+    id='DummyDraco-v0',
+    entry_point='gym.envs.custom:DummyDracoEnv',
+    max_episode_steps=10000.,
+    reward_threshold=10000.,
+)
+
 # Classic
 # ----------------------------------------
 

@@ -67,10 +67,12 @@ class DracoEnv(gym.Env):
     self.n_dof = active_joint
 
     # ==========================================================================
-    # Observation & Action
+    # Observations \in R^{3 + 4 + 10 + 3 + 3 + 10 + 10 + 3*8} :
+    #    [base_pos, base_quat, q, base_vel, base_so3, qdot, actions, rfs]
+    # Actions \in R^{10}
     # ==========================================================================
-    self.observation_space = spaces.Box(np.array(dof_lb), np.array(dof_ub),
-                                        dtype=np.float32)
+    obs_high = np.array([np.inf] * (3+4+10+3+3+10+10+3*8))
+    self.observation_space = spaces.Box(-obs_high, obs_high, dtype=np.float32)
     self.action_space = spaces.Box(np.array([-1]*self.n_dof),
                                    np.array([1]*self.n_dof), dtype=np.float32)
     self.action_sclae = np.array(dof_max_force)
@@ -110,12 +112,19 @@ class DracoEnv(gym.Env):
     # ==========================================================================
     # Termination condition
     # ==========================================================================
-    done = bool( (np.abs(base_pos[2] - self.base_ini_pos[2]) > 0.05) or
-                 (np.abs(base_pos[1] - self.base_ini_pos[1]) > 0.10) or
-                 (np.abs(base_euler[0]) > 0.1) or
-                 (np.abs(base_euler[1]) > 0.1) or
-                 (np.abs(base_euler[2]) > 0.1)
-               )
+    done_info = [False] * 5
+    if (np.abs(base_pos[2] - self.base_ini_pos[2]) > 0.10):
+        done_info[0] = True
+    if (np.abs(base_pos[1] - self.base_ini_pos[1]) > 0.20):
+        done_info[1] = True
+    if (np.abs(base_euler[0]) > 0.785):
+        done_info[2] = True
+    if (np.abs(base_euler[1]) > 0.785):
+        done_info[3] = True
+    if (np.abs(base_euler[2]) > 0.785):
+        done_info[4] = True
+    done = any(done_info)
+    # print(done_info)
 
     # ==========================================================================
     # Reward

@@ -43,8 +43,6 @@ class DracoEnv(gym.Env):
     p.loadURDF("plane.urdf")
     self.feet = ['lFootFront', 'lFootFront2', 'lFootBack', 'lFootBack2',
                  'rFootFront', 'rFootFront2', 'rFootBack', 'rFootBack2']
-    self.b_contact = [False]*len(self.feet)
-    self.contact_force = [0]*len(self.feet)
 
     self.joint_list = {}
     self.link_list = {}
@@ -92,7 +90,7 @@ class DracoEnv(gym.Env):
     # ==========================================================================
     # Apply action
     # ==========================================================================
-    base_pos, base_quat, _, _, _, _ = self.get_observation()
+    base_pos, base_quat, _, _, _, _ = self.get_state()
     pos_before = base_pos[0]
     clamped_action = np.clip(np.array(action), self.action_space.low,
                                                self.action_space.high)
@@ -105,10 +103,9 @@ class DracoEnv(gym.Env):
     # ==========================================================================
     # Get observation
     # ==========================================================================
-    base_pos, base_quat, q, base_vel, base_so3, qdot = self.get_observation()
+    base_pos, base_quat, q, base_vel, base_so3, qdot = self.get_state()
     pos_after = base_pos[0]
     base_euler = p.getEulerFromQuaternion(base_quat)
-    obs = base_pos + base_quat + q + base_vel + base_so3 + qdot
 
     # ==========================================================================
     # Termination condition
@@ -127,27 +124,39 @@ class DracoEnv(gym.Env):
     alive_bonus = 10.0
     action_pen = 0.5 * np.square(clamped_action).sum()
     deviation_pen = 3 * np.square(base_pos[1:3]).sum()
-    for foot_idx, foot_name in enumerate(self.feet):
-        contact_result = p.getContactPoints(bodyA=self.draco,
-                                            linkIndexA=self.link_list[foot_name])
-        if len(contact_result) == 0:
-            self.b_contact[foot_idx] = False
-            self.contact_force[foot_idx] = 0
-        else:
-            self.b_contact[foot_idx] = True
-            self.contact_force[foot_idx] = \
-                sum([np.sqrt(cp[9]*cp[9] + cp[10]*cp[10] + cp[12]*cp[12]) \
-                    for cp in contact_result])
 
-    impact_pen = 1.0 * sum(self.contact_force) / 380.0
+    b_contact, contact_forces = self.get_contact_forces()
+
+    impact_pen = 1.0 * sum( [np.linalg.norm(cf) for cf in contact_forces] ) / 380.0
     impact_pen = min(impact_pen, 3)
     reward = vel_rew + alive_bonus - action_pen - deviation_pen - impact_pen
     if done:
         reward = 0.0
 
-    # print("alive_bonus : {}, action_pen : {}, deviation_pen : {}, impact_pen : {}, total_rew : {}".format(alive_bonus, action_pen, deviation_pen, impact_pen, reward))
-    # return np.array(obs), reward, False, {}
-    return np.array(obs), reward, done, {}
+    obs = base_pos + base_quat + q + base_vel + base_so3 + qdot + action
+    for i in len(self.feet):
+        obs = obs + contact_forces[i].tolist()
+    ## TODO
+    print("alive_bonus : {}, action_pen : {}, deviation_pen : {}, impact_pen : {}, total_rew : {}".format(alive_bonus, action_pen, deviation_pen, impact_pen, reward))
+    return np.array(obs), reward, False, {}
+    # return np.array(obs), reward, done, {}
+
+  def get_contact_forces(self):
+    b_contact = [False] * len(self.feet)
+    contact_forces = [np.zeros(shape(3, ))]*len(self.feet)
+
+    for foot_idx, foot_name in enumerate(self.feet):
+        contact_result = p.getContactPoints(bodyA=self.draco,
+                                            linkIndexA=self.link_list[foot_name])
+        if len(contact_result) == 0:
+            b_contact[foot_idx] = False
+            contact_forces[foot_idx] = np.zeros(shape(3,))
+        else:
+            b_contact[foot_idx] = True
+            contact_forces[foot_idx] = np.array( [sum(contact_result[:, 10]),
+                                                  sum(contact_result[:, 12]),
+                                                  sum(contact_result[:, 9])] )
+    return b_contact, contact_forces
 
   def reset(self):
     p.resetSimulation()
@@ -175,9 +184,16 @@ class DracoEnv(gym.Env):
     for i, dof_idx in enumerate(self.dof_idx):
         p.resetJointState(self.draco, dof_idx, self.ini_pos[i] + randpos[i],
                           randvel[i])
-    base_pos, base_quat, q, base_vel, base_so3, qdot = self.get_observation()
-    obs = base_pos + base_quat + q + base_vel + base_so3 + qdot
+    base_pos, base_quat, q, base_vel, base_so3, qdot = self.get_state()
     self.base_ini_pos = base_pos
+
+    actions = [0]*10
+    b_contact, contact_forces = self.get_contact_forces()
+    obs = base_pos + base_quat + q + base_vel + base_so3 + qdot + actions
+    for i in len(self.feet):
+        obs = obs + contact_forces[i].tolist()
+
+    __import__('ipdb').set_trace() ##TODO
 
     return np.array(obs)
 
@@ -187,7 +203,7 @@ class DracoEnv(gym.Env):
   # ============================================================================
   # Joint State Query
   # ============================================================================
-  def get_observation(self):
+  def get_state(self):
     joint_states = p.getJointStates(self.draco, self.dof_idx)
     q = [state[0] for state in joint_states]
     qdot = [state[1] for state in joint_states]

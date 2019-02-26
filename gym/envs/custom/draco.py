@@ -129,8 +129,8 @@ class DracoEnv(gym.Env):
     # ==========================================================================
     # Reward
     # ==========================================================================
-    vel_rew = (pos_after - pos_before) / self.timeStep
-    alive_bonus = 10.0
+    vel_rew = 5.0 * (pos_after - pos_before) / self.timeStep
+    alive_bonus = 5.0
     action_pen = 0.5 * np.square(clamped_action).sum()
     deviation_pen = 3 * np.square(base_pos[1:3]).sum()
 
@@ -146,8 +146,7 @@ class DracoEnv(gym.Env):
     for i in range(len(b_contact)):
         obs = obs + contact_forces[i].tolist()
 
-    # print("alive_bonus : {}, action_pen : {}, deviation_pen : {}, impact_pen : {}, total_rew : {}".format(alive_bonus, action_pen, deviation_pen, impact_pen, reward))
-    # return np.array(obs), reward, False, {}
+    # print("alive_bonus : {}, vel_rew : {}, action_pen : {}, deviation_pen : {}, impact_pen : {}, total_rew : {}".format(alive_bonus, vel_rew, action_pen, deviation_pen, impact_pen, reward))
     return np.array(obs), reward, done, {}
 
   def get_contact_forces(self):

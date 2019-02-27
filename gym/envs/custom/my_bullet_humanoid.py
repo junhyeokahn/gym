@@ -37,8 +37,10 @@ class MyBulletHumanoidEnv(gym.Env):
     # ==========================================================================
     # self.hanging_pos = [0, 0, 0.895]
     self.hanging_pos = [0, 0, 1.5]
+
     self.humanoid = p.loadMJCF(
             "/Users/junhyeokahn/Repository/bullet3/examples/pybullet/gym/pybullet_data/mjcf/humanoid_symmetric.xml")[0]
+
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF("plane.urdf")
     self.feet = ['l_foot', 'r_foot']

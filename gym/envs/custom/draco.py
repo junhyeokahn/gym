@@ -37,9 +37,11 @@ class DracoEnv(gym.Env):
     # ==========================================================================
     # self.hanging_pos = [0, 0, 0.895]
     self.hanging_pos = [0, 0, 1.0]
-    self.draco = p.loadURDF(
-            PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixed.urdf",
-            self.hanging_pos, useFixedBase=False)
+    if self._render:
+        self.draco = p.loadURDF(PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixed.urdf", self.hanging_pos, useFixedBase=False)
+    else:
+        self.draco = p.loadURDF(PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixedNoVisual.urdf", self.hanging_pos, useFixedBase=False)
+
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF("plane.urdf")
     self.feet = ['lAnkle', 'rAnkle']
@@ -180,11 +182,11 @@ class DracoEnv(gym.Env):
     p.resetSimulation()
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF("plane.urdf")
-    self.draco = p.loadURDF(
-            PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixed.urdf",
-            self.hanging_pos, useFixedBase=False)
+    if self._render:
+        self.draco = p.loadURDF(PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixed.urdf", self.hanging_pos, useFixedBase=False)
+    else:
+        self.draco = p.loadURDF(PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixedNoVisual.urdf", self.hanging_pos, useFixedBase=False)
     p.changeDynamics(self.draco, -1, linearDamping=0, angularDamping=0)
-    # self.timeStep = 0.01
     self.timeStep = 1./240.
     p.setJointMotorControlArray(self.draco, self.dof_idx, p.TORQUE_CONTROL,
                                 forces=np.zeros(self.n_dof))

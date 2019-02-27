@@ -24,10 +24,10 @@ class MyBulletCartPoleEnv(gym.Env):
     'video.frames_per_second' : 50
   }
 
-  def __init__(self, renders=False):
+  def __init__(self, render=False):
     # start the bullet physics server
-    self._renders = renders
-    if (renders):
+    self._render = render
+    if (render):
         p.connect(p.GUI)
     else:
         p.connect(p.DIRECT)

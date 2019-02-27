@@ -64,8 +64,22 @@ register(
 )
 
 register(
+    id='MyBulletHumanoid-v0',
+    entry_point='gym.envs.custom:MyBulletHumanoidEnv',
+    max_episode_steps=2000,
+    reward_threshold=500.0,
+)
+
+register(
     id='Draco-v0',
     entry_point='gym.envs.custom:DracoEnv',
+    max_episode_steps=2000,
+    reward_threshold=500.0,
+)
+
+register(
+    id='Atlas-v0',
+    entry_point='gym.envs.custom:AtlasEnv',
     max_episode_steps=2000,
     reward_threshold=500.0,
 )

@@ -16,7 +16,7 @@ PROJECT_PATH = os.getcwd()
 
 logger = logging.getLogger(__name__)
 
-class DracoEnv(gym.Env):
+class MyBulletHumanoidEnv(gym.Env):
   metadata = {
     'render.modes': ['human', 'rgb_array'],
     'video.frames_per_second' : 50
@@ -36,13 +36,12 @@ class DracoEnv(gym.Env):
     # Robot Configuration
     # ==========================================================================
     # self.hanging_pos = [0, 0, 0.895]
-    self.hanging_pos = [0, 0, 1.0]
-    self.draco = p.loadURDF(
-            PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixed.urdf",
-            self.hanging_pos, useFixedBase=False)
+    self.hanging_pos = [0, 0, 1.5]
+    self.humanoid = p.loadMJCF(
+            "/Users/junhyeokahn/Repository/bullet3/examples/pybullet/gym/pybullet_data/mjcf/humanoid_symmetric.xml")[0]
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF("plane.urdf")
-    self.feet = ['lAnkle', 'rAnkle']
+    self.feet = ['l_foot', 'r_foot']
 
     self.joint_list = {}
     self.link_list = {}
@@ -51,8 +50,8 @@ class DracoEnv(gym.Env):
     dof_ub = []
     dof_max_force = []
     active_joint = 0
-    for j in range (p.getNumJoints(self.draco)):
-        info = p.getJointInfo(self.draco, j)
+    for j in range (p.getNumJoints(self.humanoid)):
+        info = p.getJointInfo(self.humanoid, j)
         joint_name = info[1]
         joint_type = info[2]
         link_name = info[12]
@@ -67,11 +66,11 @@ class DracoEnv(gym.Env):
     self.n_dof = active_joint
 
     # ==========================================================================
-    # Observations \in R^{3 + 4 + 10 + 3 + 3 + 10 + 10 + 3*2} :
+    # Observations \in R^{3 + 4 + dof + 3 + 3 + dof + dof + 3*2} :
     #    [base_pos, base_quat, q, base_vel, base_so3, qdot, actions, rfs]
-    # Actions \in R^{10}
+    # Actions \in R^{n_dof}
     # ==========================================================================
-    obs_high = np.array([np.inf] * (3+4+10+3+3+10+10+3*2))
+    obs_high = np.array([np.inf] * (3+4+self.n_dof+3+3+self.n_dof+self.n_dof+3*2))
     self.observation_space = spaces.Box(-obs_high, obs_high, dtype=np.float32)
     self.action_space = spaces.Box(np.array([-1]*self.n_dof),
                                    np.array([1]*self.n_dof), dtype=np.float32)
@@ -98,7 +97,7 @@ class DracoEnv(gym.Env):
                                                self.action_space.high)
     force = clamped_action * self.action_sclae
 
-    p.setJointMotorControlArray(self.draco, self.dof_idx, p.TORQUE_CONTROL,
+    p.setJointMotorControlArray(self.humanoid, self.dof_idx, p.TORQUE_CONTROL,
                                 forces=force)
     p.stepSimulation()
 
@@ -113,7 +112,7 @@ class DracoEnv(gym.Env):
     # Termination condition
     # ==========================================================================
     done_info = [False] * 5
-    if (base_pos[2] < 0.8):
+    if (np.abs(base_pos[2] - self.base_ini_pos[2]) > 0.10):
         done_info[0] = True
     if (np.abs(base_pos[1] - self.base_ini_pos[1]) > 0.20):
         done_info[1] = True
@@ -124,9 +123,7 @@ class DracoEnv(gym.Env):
     if (np.abs(base_euler[2]) > 0.785):
         done_info[4] = True
     done = any(done_info)
-    # if done:
-        # print(done_info)
-        # __import__('ipdb').set_trace()
+    # print(done_info)
 
     # ==========================================================================
     # Reward
@@ -163,30 +160,33 @@ class DracoEnv(gym.Env):
     b_contact = [False] * len(self.feet)
     contact_forces = [np.zeros(shape=(3, ))]*len(self.feet)
 
-    for foot_idx, foot_name in enumerate(self.feet):
-        contact_result = p.getContactPoints(bodyA=self.draco, linkIndexA=self.link_list[foot_name])
-        n_contact = len(contact_result)
-        if n_contact == 0:
-            b_contact[foot_idx] = False
-            contact_forces[foot_idx] = np.zeros(shape=(3,))
-        else:
-            b_contact[foot_idx] = True
-            contact_forces[foot_idx] = np.array( [sum(contact_result[i][10] for i in range(n_contact)),
-                                                  sum(contact_result[i][12] for i in range(n_contact)),
-                                                  sum(contact_result[i][9] for i in range(n_contact))] )
+    # for foot_idx, foot_name in enumerate(self.feet):
+        # contact_result = p.getContactPoints(bodyA=self.humanoid, linkIndexA=self.link_list[foot_name])
+        # n_contact = len(contact_result)
+        # if n_contact == 0:
+            # b_contact[foot_idx] = False
+            # contact_forces[foot_idx] = np.zeros(shape=(3,))
+        # else:
+            # b_contact[foot_idx] = True
+            # contact_forces[foot_idx] = np.array( [sum(contact_result[i][10] for i in range(n_contact)),
+                                                  # sum(contact_result[i][12] for i in range(n_contact)),
+                                                  # sum(contact_result[i][9] for i in range(n_contact))] )
     return b_contact, contact_forces
 
   def reset(self):
     p.resetSimulation()
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF("plane.urdf")
-    self.draco = p.loadURDF(
-            PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixed.urdf",
-            self.hanging_pos, useFixedBase=False)
-    p.changeDynamics(self.draco, -1, linearDamping=0, angularDamping=0)
+    # self.humanoid = p.loadURDF(
+            # PROJECT_PATH+"/RobotModel/Robot/Atlas/atlas_v4_with_multisense.urdf",
+            # self.hanging_pos, useFixedBase=False)
+
+    self.humanoid = p.loadMJCF(
+            "/Users/junhyeokahn/Repository/bullet3/examples/pybullet/gym/pybullet_data/mjcf/humanoid_symmetric.xml")[0]
+    p.changeDynamics(self.humanoid, -1, linearDamping=0, angularDamping=0)
     # self.timeStep = 0.01
     self.timeStep = 1./240.
-    p.setJointMotorControlArray(self.draco, self.dof_idx, p.TORQUE_CONTROL,
+    p.setJointMotorControlArray(self.humanoid, self.dof_idx, p.TORQUE_CONTROL,
                                 forces=np.zeros(self.n_dof))
     p.setGravity(0,0, -9.81)
     p.setTimeStep(self.timeStep)
@@ -194,19 +194,18 @@ class DracoEnv(gym.Env):
 
     alpha = -np.pi/4.0
     beta = np.pi/5.5
-    self.ini_pos = np.array([0, 0, alpha, beta - alpha, np.pi/2 - beta,
-                             0, 0, alpha, beta - alpha, np.pi/2 - beta])
+    self.ini_pos = np.zeros(shape=(self.n_dof))
     randpos = self.np_random.uniform(low=-0.005, high=0.005,
                                        size=(self.n_dof,))
     randvel = self.np_random.uniform(low=-0.005, high=0.005,
                                        size=(self.n_dof,))
     for i, dof_idx in enumerate(self.dof_idx):
-        p.resetJointState(self.draco, dof_idx, self.ini_pos[i] + randpos[i],
+        p.resetJointState(self.humanoid, dof_idx, self.ini_pos[i] + randpos[i],
                           randvel[i])
     base_pos, base_quat, q, base_vel, base_so3, qdot = self.get_state()
     self.base_ini_pos = base_pos
 
-    zero_actions = [0]*10
+    zero_actions = [0]*self.n_dof
     b_contact, contact_forces = self.get_contact_forces()
     obs = base_pos + base_quat + q + base_vel + base_so3 + qdot + zero_actions
     for i in range(len(b_contact)):
@@ -221,12 +220,12 @@ class DracoEnv(gym.Env):
   # Joint State Query
   # ============================================================================
   def get_state(self):
-    joint_states = p.getJointStates(self.draco, self.dof_idx)
+    joint_states = p.getJointStates(self.humanoid, self.dof_idx)
     q = [state[0] for state in joint_states]
     qdot = [state[1] for state in joint_states]
     base_pos, base_quat, base_vel, base_so3 = (), (), (), ()
-    base_pos, base_quat= p.getBasePositionAndOrientation(self.draco)
-    base_vel, base_so3 = p.getBaseVelocity(self.draco)
+    base_pos, base_quat= p.getBasePositionAndOrientation(self.humanoid)
+    base_vel, base_so3 = p.getBaseVelocity(self.humanoid)
 
     return list(base_pos), list(base_quat), q, \
            list(base_vel), list(base_so3), qdot
@@ -236,41 +235,41 @@ class DracoEnv(gym.Env):
   # Link State Query
   # ============================================================================
   def get_link_com_pos(self, link_idx):
-    return p.getLinkState(self.draco, link_idx,
+    return p.getLinkState(self.humanoid, link_idx,
                           computeLinkVelocity=False,
                           computeForwardKinematics=True)[0]
 
   def get_link_com_quat(self, link_idx):
-    return p.getLinkState(self.draco, link_idx,
+    return p.getLinkState(self.humanoid, link_idx,
                           computeLinkVelocity=False,
                           computeForwardKinematics=True)[1]
 
   def get_link_local_com_pos(self, link_idx):
-    return p.getLinkState(self.draco, link_idx,
+    return p.getLinkState(self.humanoid, link_idx,
                           computeLinkVelocity=False,
                           computeForwardKinematics=True)[2]
 
   def get_link_local_com_quat(self, link_idx):
-    return p.getLinkState(self.draco, link_idx,
+    return p.getLinkState(self.humanoid, link_idx,
                           computeLinkVelocity=False,
                           computeForwardKinematics=True)[3]
 
   def get_link_pos(self, link_idx):
-    return p.getLinkState(self.draco, link_idx,
+    return p.getLinkState(self.humanoid, link_idx,
                           computeLinkVelocity=False,
                           computeForwardKinematics=True)[4]
 
   def get_link_quat(self, link_idx):
-    return p.getLinkState(self.draco, link_idx,
+    return p.getLinkState(self.humanoid, link_idx,
                           computeLinkVelocity=False,
                           computeForwardKinematics=True)[5]
 
   def get_link_vel(self, link_idx):
-    return p.getLinkState(self.draco, link_idx,
+    return p.getLinkState(self.humanoid, link_idx,
                           computeLinkVelocity=True,
                           computeForwardKinematics=True)[6]
 
   def get_link_so3(self, link_idx):
-    return p.getLinkState(self.draco, link_idx,
+    return p.getLinkState(self.humanoid, link_idx,
                           computeLinkVelocity=True,
                           computeForwardKinematics=True)[7]

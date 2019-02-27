@@ -35,14 +35,13 @@ class DracoEnv(gym.Env):
     # ==========================================================================
     # Robot Configuration
     # ==========================================================================
-    self.hanging_pos = [0, 0, 0.893]
+    self.hanging_pos = [0, 0, 0.895]
     self.draco = p.loadURDF(
             PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixed.urdf",
             self.hanging_pos, useFixedBase=False)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF("plane.urdf")
-    self.feet = ['lFootFront', 'lFootFront2', 'lFootBack', 'lFootBack2',
-                 'rFootFront', 'rFootFront2', 'rFootBack', 'rFootBack2']
+    self.feet = ['lAnkle', 'rAnkle']
 
     self.joint_list = {}
     self.link_list = {}
@@ -67,11 +66,11 @@ class DracoEnv(gym.Env):
     self.n_dof = active_joint
 
     # ==========================================================================
-    # Observations \in R^{3 + 4 + 10 + 3 + 3 + 10 + 10 + 3*8} :
+    # Observations \in R^{3 + 4 + 10 + 3 + 3 + 10 + 10 + 3*2} :
     #    [base_pos, base_quat, q, base_vel, base_so3, qdot, actions, rfs]
     # Actions \in R^{10}
     # ==========================================================================
-    obs_high = np.array([np.inf] * (3+4+10+3+3+10+10+3*8))
+    obs_high = np.array([np.inf] * (3+4+10+3+3+10+10+3*2))
     self.observation_space = spaces.Box(-obs_high, obs_high, dtype=np.float32)
     self.action_space = spaces.Box(np.array([-1]*self.n_dof),
                                    np.array([1]*self.n_dof), dtype=np.float32)
@@ -138,7 +137,15 @@ class DracoEnv(gym.Env):
 
     impact_pen = 1.0 * sum( [np.linalg.norm(cf) for cf in contact_forces] ) / 380.0
     impact_pen = min(impact_pen, 3)
-    reward = vel_rew + alive_bonus - action_pen - deviation_pen - impact_pen
+
+    jump_pen = 0.0;
+    if not any(b_contact):
+        jump_pen = -5.0
+
+    ## TEST ##
+    # reward = vel_rew + alive_bonus - action_pen - deviation_pen - impact_pen - jump_pen
+    ## TEST ##
+    reward = vel_rew + alive_bonus
     if done:
         reward = 0.0
 
@@ -154,8 +161,7 @@ class DracoEnv(gym.Env):
     contact_forces = [np.zeros(shape=(3, ))]*len(self.feet)
 
     for foot_idx, foot_name in enumerate(self.feet):
-        contact_result = p.getContactPoints(bodyA=self.draco,
-                                            linkIndexA=self.link_list[foot_name])
+        contact_result = p.getContactPoints(bodyA=self.draco, linkIndexA=self.link_list[foot_name])
         n_contact = len(contact_result)
         if n_contact == 0:
             b_contact[foot_idx] = False
@@ -186,9 +192,9 @@ class DracoEnv(gym.Env):
     beta = np.pi/5.5
     self.ini_pos = np.array([0, 0, alpha, beta - alpha, np.pi/2 - beta,
                              0, 0, alpha, beta - alpha, np.pi/2 - beta])
-    randpos = self.np_random.uniform(low=-0.05, high=0.05,
+    randpos = self.np_random.uniform(low=-0.005, high=0.005,
                                        size=(self.n_dof,))
-    randvel = self.np_random.uniform(low=-0.05, high=0.05,
+    randvel = self.np_random.uniform(low=-0.005, high=0.005,
                                        size=(self.n_dof,))
     for i, dof_idx in enumerate(self.dof_idx):
         p.resetJointState(self.draco, dof_idx, self.ini_pos[i] + randpos[i],

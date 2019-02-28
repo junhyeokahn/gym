@@ -35,22 +35,31 @@ class DracoEnv(gym.Env):
     # ==========================================================================
     # Robot Configuration
     # ==========================================================================
-    # self.hanging_pos = [0, 0, 0.895]
-    self.hanging_pos = [0, 0, 1.0]
+    ############################################################################
+    # self.hanging_pos = [0, 0, 1.13]
+    # self.hanging_ori = p.getQuaternionFromEuler([0, 0, 0])
+    # self.ini_pos = np.array([0, 0, 0, 0, np.pi/2, 0, 0, 0, 0, np.pi/2])
+    ############################################################################
+    self.hanging_pos = [0, 0, 1.08]
+    self.hanging_ori = p.getQuaternionFromEuler([0, np.deg2rad(15), 0])
+    self.ini_pos = np.array([0, 0, np.deg2rad(-30), np.deg2rad(30), np.deg2rad(75),
+                             0, 0, np.deg2rad(-30), np.deg2rad(30), np.deg2rad(75)])
+    ############################################################################
+
     if self._render:
-        self.draco = p.loadURDF(PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixed.urdf", self.hanging_pos, useFixedBase=False)
+        self.draco = p.loadURDF(PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixed.urdf", self.hanging_pos, self.hanging_ori, useFixedBase=False)
     else:
-        self.draco = p.loadURDF(PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixedNoVisual.urdf", self.hanging_pos, useFixedBase=False)
+        self.draco = p.loadURDF(PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixedNoVisual.urdf", self.hanging_pos, self.hanging_ori, useFixedBase=False)
 
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
-    p.loadURDF("plane.urdf")
+    p.loadURDF(PROJECT_PATH+"/RobotModel/Ground/plane.urdf")
     self.feet = ['lAnkle', 'rAnkle']
 
     self.joint_list = {}
     self.link_list = {}
     self.dof_idx = []
-    dof_lb = []
-    dof_ub = []
+    self.dof_lb = []
+    self.dof_ub = []
     dof_max_force = []
     active_joint = 0
     for j in range (p.getNumJoints(self.draco)):
@@ -62,11 +71,17 @@ class DracoEnv(gym.Env):
         self.link_list[link_name.decode()] = j
         if (joint_type==p.JOINT_PRISMATIC or joint_type==p.JOINT_REVOLUTE):
             self.dof_idx.append(j)
-            dof_lb.append(info[8])
-            dof_ub.append(info[9])
+            self.dof_lb.append(info[8])
+            self.dof_ub.append(info[9])
             dof_max_force.append(info[10])
             active_joint+=1
     self.n_dof = active_joint
+    self.dof_lb[self.joint_list['lKnee']] -= 0.1
+    self.dof_lb[self.joint_list['rKnee']] -= 0.1
+    self.dof_term_lb = np.array([-0.785, -0.5, -1.04, -0.1, 0.901, \
+                                 -0.785, -0.785, -1.04, -0.1, 0.901])
+    self.dof_term_ub = np.array([0.785, 0.785, 1.04, 1.57, 2.44, \
+                                 0.785, 0.5, 1.04, 1.57, 2.44])
 
     # ==========================================================================
     # Observations \in R^{3 + 4 + 10 + 3 + 3 + 10 + 10 + 3*2} :
@@ -100,8 +115,7 @@ class DracoEnv(gym.Env):
                                                self.action_space.high)
     force = clamped_action * self.action_sclae
 
-    p.setJointMotorControlArray(self.draco, self.dof_idx, p.TORQUE_CONTROL,
-                                forces=force)
+    p.setJointMotorControlArray(self.draco, self.dof_idx, p.TORQUE_CONTROL, forces=force)
     p.stepSimulation()
 
     # ==========================================================================
@@ -114,43 +128,40 @@ class DracoEnv(gym.Env):
     # ==========================================================================
     # Termination condition
     # ==========================================================================
-    done_info = [False] * 5
-    if (base_pos[2] < 0.8):
+    done_info = [False] * 6
+    if (base_pos[2] < 0.75):
         done_info[0] = True
     if (np.abs(base_pos[1] - self.base_ini_pos[1]) > 0.20):
         done_info[1] = True
-    if (np.abs(base_euler[0]) > 0.785):
+    if (np.abs(base_euler[0]) > 1.04):
         done_info[2] = True
-    if (np.abs(base_euler[1]) > 0.785):
+    if (np.abs(base_euler[1]) > 1.04):
         done_info[3] = True
-    if (np.abs(base_euler[2]) > 0.785):
+    if (np.abs(base_euler[2]) > 1.04):
         done_info[4] = True
+    if (any(np.array(q) > self.dof_ub) or any(np.array(q) < self.dof_lb) ):
+        done_info[5] = True
     done = any(done_info)
     # if done:
         # print(done_info)
-        # __import__('ipdb').set_trace()
 
     # ==========================================================================
     # Reward
     # ==========================================================================
     vel_rew = 5.0 * (pos_after - pos_before) / self.timeStep
-    alive_bonus = 5.0
+    alive_bonus = 7.0
     action_pen = 0.5 * np.square(clamped_action).sum()
-    deviation_pen = 3 * np.square(base_pos[1:3]).sum()
+    deviation_pen = np.square(base_pos[1:3]).sum() + np.square(base_euler).sum()
 
     b_contact, contact_forces = self.get_contact_forces()
 
     impact_pen = 1.0 * sum( [np.linalg.norm(cf) for cf in contact_forces] ) / 380.0
     impact_pen = min(impact_pen, 3)
 
-    jump_pen = 0.0;
-    if not any(b_contact):
-        jump_pen = -5.0
-
     ## TEST ##
-    # reward = vel_rew + alive_bonus - action_pen - deviation_pen - impact_pen - jump_pen
+    # reward = vel_rew + alive_bonus - action_pen - deviation_pen - impact_pen
     ## TEST ##
-    reward = vel_rew + alive_bonus
+    reward = vel_rew + alive_bonus - action_pen - deviation_pen
     if done:
         reward = 0.0
 
@@ -181,23 +192,21 @@ class DracoEnv(gym.Env):
   def reset(self):
     p.resetSimulation()
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
-    p.loadURDF("plane.urdf")
+    p.loadURDF(PROJECT_PATH+"/RobotModel/Ground/plane.urdf")
     if self._render:
-        self.draco = p.loadURDF(PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixed.urdf", self.hanging_pos, useFixedBase=False)
+        self.draco = p.loadURDF(PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixed.urdf", self.hanging_pos, self.hanging_ori, useFixedBase=False)
     else:
-        self.draco = p.loadURDF(PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixedNoVisual.urdf", self.hanging_pos, useFixedBase=False)
-    p.changeDynamics(self.draco, -1, linearDamping=0, angularDamping=0)
+        self.draco = p.loadURDF(PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixedNoVisual.urdf", self.hanging_pos, self.hanging_ori, useFixedBase=False)
     self.timeStep = 1./240.
-    p.setJointMotorControlArray(self.draco, self.dof_idx, p.TORQUE_CONTROL,
+    p.changeDynamics(self.draco, -1, linearDamping=0, angularDamping=0)
+    for i in range(self.n_dof):
+        p.changeDynamics(self.draco, i, lateralFriction=10)
+    p.setJointMotorControlArray(self.draco, self.dof_idx, p.VELOCITY_CONTROL,
                                 forces=np.zeros(self.n_dof))
     p.setGravity(0,0, -9.81)
     p.setTimeStep(self.timeStep)
     p.setRealTimeSimulation(0)
 
-    alpha = -np.pi/4.0
-    beta = np.pi/5.5
-    self.ini_pos = np.array([0, 0, alpha, beta - alpha, np.pi/2 - beta,
-                             0, 0, alpha, beta - alpha, np.pi/2 - beta])
     randpos = self.np_random.uniform(low=-0.005, high=0.005,
                                        size=(self.n_dof,))
     randvel = self.np_random.uniform(low=-0.005, high=0.005,

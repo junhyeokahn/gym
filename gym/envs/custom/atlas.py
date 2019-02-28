@@ -37,9 +37,7 @@ class AtlasEnv(gym.Env):
     # ==========================================================================
     # self.hanging_pos = [0, 0, 0.895]
     self.hanging_pos = [0, 0, 1.5]
-    self.atlas = p.loadURDF(
-            PROJECT_PATH+"/RobotModel/Robot/Atlas/atlas_v4_with_multisense.urdf",
-            self.hanging_pos, useFixedBase=False)
+    self.atlas = p.loadURDF(PROJECT_PATH+"/RobotModel/Robot/Atlas/atlas_v4_with_multisense.urdf", self.hanging_pos, useFixedBase=False)
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
     p.loadURDF("plane.urdf")
     self.feet = ['l_foot', 'r_foot']

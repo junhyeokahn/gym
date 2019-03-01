@@ -126,7 +126,7 @@ class Draco(WalkerBase2):
 			m.set_motor_torque(float(force_gain * power * self.power * np.clip(a[i], -1, +1)))
 
 	def alive_bonus(self, z, pitch):
-		return +2 if z > 0.85 else -1   # 2 here because 17 joints produce a lot of electricity cost just from policy noise, living must be better than dying
+		return +2 if (z > 0.85 and np.abs(pitch) < np.deg2rad(45))  else -1   # 2 here because 17 joints produce a lot of electricity cost just from policy noise, living must be better than dying
 
 class Atlas(WalkerBase2):
 	self_collision = False

@@ -76,7 +76,9 @@ class Draco(WalkerBase2):
 
 		base_pos = [0, 0, 1.1]
 		base_ori = [0, 0, 0, 1]
-		WalkerBase2.__init__(self,  PROJECT_PATH+"/RobotModel/Robot/Draco/FixedDracoSim_PyBullet.urdf", 'Torso', action_dim=10, obs_dim=8+2*10+2, base_pos=base_pos, base_ori=base_ori, power=1)
+		self.n_ac = 10
+		self.n_obs = 8+2*10+2
+		WalkerBase2.__init__(self,  PROJECT_PATH+"/RobotModel/Robot/Draco/FixedDracoSim_PyBullet.urdf", 'Torso', action_dim=self.n_ac, obs_dim=self.n_obs, base_pos=base_pos, base_ori=base_ori, power=1)
 
 	def robot_specific_reset(self, bullet_client):
 		WalkerBase2.robot_specific_reset(self, bullet_client)
@@ -122,11 +124,11 @@ class Draco(WalkerBase2):
 	def apply_action(self, a):
 		assert( np.isfinite(a).all() )
 		force_gain = 1
-		for i, m, power in zip(range(17), self.motors, self.motor_power):
+		for i, m, power in zip(range(self.n_ac), self.motors, self.motor_power):
 			m.set_motor_torque(float(force_gain * power * self.power * np.clip(a[i], -1, +1)))
 
 	def alive_bonus(self, z, pitch):
-		return +2 if (z > 0.85 and np.abs(pitch) < np.deg2rad(45))  else -1   # 2 here because 17 joints produce a lot of electricity cost just from policy noise, living must be better than dying
+		return +2 if (z > 0.85 and np.abs(pitch) < np.deg2rad(45))  else -1
 
 class Atlas(WalkerBase2):
 	self_collision = False
@@ -136,7 +138,9 @@ class Atlas(WalkerBase2):
 
 		base_pos = [0, 0, 1.05]
 		base_ori = [0, 0, 0, 1]
-		WalkerBase2.__init__(self,  PROJECT_PATH+"/RobotModel/Robot/Atlas/atlas_v4_with_multisense.urdf", 'pelvis', action_dim=30, obs_dim=8 + 2*30 + 2, base_pos=base_pos, base_ori=base_ori, power=1)
+		self.n_ac = 30
+		self.n_obs = 8+2*30+2
+		WalkerBase2.__init__(self,  PROJECT_PATH+"/RobotModel/Robot/Atlas/atlas_v4_with_multisense.urdf", 'pelvis', action_dim=self.n_ac, obs_dim=self.n_obs, base_pos=base_pos, base_ori=base_ori, power=1)
 
 	def robot_specific_reset(self, bullet_client):
 		WalkerBase2.robot_specific_reset(self, bullet_client)
@@ -171,22 +175,22 @@ class Atlas(WalkerBase2):
 	def apply_action(self, a):
 		assert( np.isfinite(a).all() )
 		force_gain = 1
-		for i, m, power in zip(range(17), self.motors, self.motor_power):
+		for i, m, power in zip(range(self.n_ac), self.motors, self.motor_power):
 			m.set_motor_torque(float(force_gain * power * self.power * np.clip(a[i], -1, +1)))
 
 	def alive_bonus(self, z, pitch):
-		return +2 if z > 0.55 else -1   # 2 here because 17 joints produce a lot of electricity cost just from policy noise, living must be better than dying
+		return +2 if z > 0.55 else -1
 
 class DracoEnv2(WalkerBaseBulletEnv):
 	def __init__(self, robot=Draco(), render=False):
 		self.robot = robot
 		WalkerBaseBulletEnv.__init__(self, self.robot, render)
 		self.electricity_cost  = 4.25*WalkerBaseBulletEnv.electricity_cost
-		self.stall_torque_cost = 4.25*WalkerBaseBulletEnv.stall_torque_cost
+		self.stall_torque_cost = 1.0*WalkerBaseBulletEnv.stall_torque_cost
 
 class AtlasEnv(WalkerBaseBulletEnv):
 	def __init__(self, robot=Atlas(), render=False):
 		self.robot = robot
 		WalkerBaseBulletEnv.__init__(self, self.robot, render)
 		self.electricity_cost  = 4.25*WalkerBaseBulletEnv.electricity_cost
-		self.stall_torque_cost = 4.25*WalkerBaseBulletEnv.stall_torque_cost
+		self.stall_torque_cost = 1.25*WalkerBaseBulletEnv.stall_torque_cost

@@ -74,7 +74,7 @@ class Draco(WalkerBase2):
 
 	def __init__(self):
 
-		base_pos = [0, 0, 1.1]
+		base_pos = [0, 0, 1.25]
 		base_ori = [0, 0, 0, 1]
 		self.n_ac = 10
 		self.n_obs = 8+2*10+2
@@ -83,18 +83,20 @@ class Draco(WalkerBase2):
 	def robot_specific_reset(self, bullet_client):
 		WalkerBase2.robot_specific_reset(self, bullet_client)
 		self.motor_names = ["lHipYaw", "lHipRoll", "lHipPitch", "lKnee", "lAnkle"]
-		self.motor_power  = [50, 50, 150, 150, 5.]
+		self.motor_power  = [50, 100, 200, 200, 5.]
 		self.motor_names = ["rHipYaw", "rHipRoll", "rHipPitch", "rKnee", "rAnkle"]
-		self.motor_power  = [50, 50, 150, 150, 5.]
+		self.motor_power  = [50, 100, 200, 200, 5.]
 
 		alpha = -np.pi / 5.
 		beta = np.pi / 4.
-		self.jdict['lHipPitch'].reset_current_position(alpha, 0)
-		self.jdict['rHipPitch'].reset_current_position(alpha, 0)
-		self.jdict['lKnee'].reset_current_position(beta-alpha, 0)
-		self.jdict['rKnee'].reset_current_position(beta-alpha, 0)
-		self.jdict['lAnkle'].reset_current_position(np.pi/2. - beta, 0)
-		self.jdict['rAnkle'].reset_current_position(np.pi/2. - beta, 0)
+		# self.jdict['lHipPitch'].reset_current_position(alpha, 0)
+		# self.jdict['rHipPitch'].reset_current_position(alpha, 0)
+		# self.jdict['lKnee'].reset_current_position(beta-alpha, 0)
+		# self.jdict['rKnee'].reset_current_position(beta-alpha, 0)
+		# self.jdict['lAnkle'].reset_current_position(np.pi/2. - beta, 0)
+		# self.jdict['rAnkle'].reset_current_position(np.pi/2. - beta, 0)
+		self.jdict['lAnkle'].reset_current_position(np.pi/2., 0)
+		self.jdict['rAnkle'].reset_current_position(np.pi/2., 0)
 
 		self.motors = [self.jdict[n] for n in self.motor_names]
 		if self.random_yaw:
@@ -128,7 +130,8 @@ class Draco(WalkerBase2):
 			m.set_motor_torque(float(force_gain * power * self.power * np.clip(a[i], -1, +1)))
 
 	def alive_bonus(self, z, pitch):
-		return +2 if (z > 0.85 and np.abs(pitch) < np.deg2rad(45))  else -1
+		# return +2 if (z > 0.75 and np.abs(pitch) < np.deg2rad(60))  else -1
+		return +2 if z > 0.75  else -1
 
 class Atlas(WalkerBase2):
 	self_collision = False

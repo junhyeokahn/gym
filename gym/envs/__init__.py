@@ -78,6 +78,13 @@ register(
 )
 
 register(
+    id='Draco-v1',
+    entry_point='gym.envs.custom:DracoEnv2',
+    max_episode_steps=5000,
+    reward_threshold=5000,
+)
+
+register(
     id='Atlas-v0',
     entry_point='gym.envs.custom:AtlasEnv',
     max_episode_steps=2000,

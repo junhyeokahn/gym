@@ -76,14 +76,14 @@ class Draco(WalkerBase2):
 
 		base_pos = [0, 0, 1.1]
 		base_ori = [0, 0, 0, 1]
-		WalkerBase2.__init__(self,  PROJECT_PATH+"/RobotModel/Robot/Draco/DracoFixed.urdf", 'Torso', action_dim=10, obs_dim=30, base_pos=base_pos, base_ori=base_ori, power=1)
+		WalkerBase2.__init__(self,  PROJECT_PATH+"/RobotModel/Robot/Draco/FixedDracoSim_PyBullet.urdf", 'Torso', action_dim=10, obs_dim=8+2*10+2, base_pos=base_pos, base_ori=base_ori, power=1)
 
 	def robot_specific_reset(self, bullet_client):
 		WalkerBase2.robot_specific_reset(self, bullet_client)
 		self.motor_names = ["lHipYaw", "lHipRoll", "lHipPitch", "lKnee", "lAnkle"]
-		self.motor_power  = [10, 10, 150, 150, 1.]
+		self.motor_power  = [50, 50, 150, 150, 5.]
 		self.motor_names = ["rHipYaw", "rHipRoll", "rHipPitch", "rKnee", "rAnkle"]
-		self.motor_power  = [10, 10, 150, 150, 1.]
+		self.motor_power  = [50, 50, 150, 150, 5.]
 
 		alpha = -np.pi / 5.
 		beta = np.pi / 4.
@@ -128,8 +128,64 @@ class Draco(WalkerBase2):
 	def alive_bonus(self, z, pitch):
 		return +2 if z > 0.85 else -1   # 2 here because 17 joints produce a lot of electricity cost just from policy noise, living must be better than dying
 
+class Atlas(WalkerBase2):
+	self_collision = False
+	foot_list = ["l_foot", "r_foot"]
+
+	def __init__(self):
+
+		base_pos = [0, 0, 1.05]
+		base_ori = [0, 0, 0, 1]
+		WalkerBase2.__init__(self,  PROJECT_PATH+"/RobotModel/Robot/Atlas/atlas_v4_with_multisense.urdf", 'pelvis', action_dim=30, obs_dim=8 + 2*30 + 2, base_pos=base_pos, base_ori=base_ori, power=1)
+
+	def robot_specific_reset(self, bullet_client):
+		WalkerBase2.robot_specific_reset(self, bullet_client)
+		self.motor_names = ['back_bkz', 'back_bky', 'back_bkx', 'l_arm_shz', 'l_arm_shx', 'l_arm_ely', 'l_arm_elx', 'l_arm_wry', 'l_arm_wrx', 'l_arm_wry2', 'neck_ry', 'r_arm_shz', 'r_arm_shx', 'r_arm_ely', 'r_arm_elx', 'r_arm_wry', 'r_arm_wrx', 'r_arm_wry2', 'l_leg_hpz', 'l_leg_hpx', 'l_leg_hpy', 'l_leg_kny', 'l_leg_aky', 'l_leg_akx', 'r_leg_hpz', 'r_leg_hpx', 'r_leg_hpy', 'r_leg_kny', 'r_leg_aky', 'r_leg_akx']
+		self.motor_power  = [106.0, 445.0, 300.0, 87.0, 99.0, 63.0, 112.0, 25.0, 25.0, 5.0, 5.0, 87.0, 99.0, 63.0, 112.0, 25.0, 25.0, 5.0, 275.0, 530.0, 840.0, 890.0, 92.0, 45.0, 275.0, 530.0, 840.0, 890.0, 92.0, 45.0]
+
+		self.motors = [self.jdict[n] for n in self.motor_names]
+		if self.random_yaw:
+			position = [0,0,0]
+			orientation = [0,0,0]
+			yaw = self.np_random.uniform(low=-3.14, high=3.14)
+			if self.random_lean and self.np_random.randint(2)==0:
+				cpose.set_xyz(0, 0, 1.4)
+				if self.np_random.randint(2)==0:
+					pitch = np.pi/2
+					position = [0, 0, 0.45]
+				else:
+					pitch = np.pi*3/2
+					position = [0, 0, 0.25]
+				roll = 0
+				orientation = [roll, pitch, yaw]
+			else:
+				position = [0, 0, 1.4]
+				orientation = [0, 0, yaw]  # just face random direction, but stay straight otherwise
+			self.robot_body.reset_position(position)
+			self.robot_body.reset_orientation(orientation)
+		self.initial_z = 0.8
+
+	random_yaw = False
+	random_lean = False
+
+	def apply_action(self, a):
+		assert( np.isfinite(a).all() )
+		force_gain = 1
+		for i, m, power in zip(range(17), self.motors, self.motor_power):
+			m.set_motor_torque(float(force_gain * power * self.power * np.clip(a[i], -1, +1)))
+
+	def alive_bonus(self, z, pitch):
+		return +2 if z > 0.55 else -1   # 2 here because 17 joints produce a lot of electricity cost just from policy noise, living must be better than dying
+
 class DracoEnv2(WalkerBaseBulletEnv):
 	def __init__(self, robot=Draco(), render=False):
+		self.robot = robot
+		WalkerBaseBulletEnv.__init__(self, self.robot, render)
+		self.electricity_cost  = 4.25*WalkerBaseBulletEnv.electricity_cost
+		self.stall_torque_cost = 4.25*WalkerBaseBulletEnv.stall_torque_cost
+
+class AtlasEnv(WalkerBaseBulletEnv):
+	def __init__(self, robot=Atlas(), render=False):
 		self.robot = robot
 		WalkerBaseBulletEnv.__init__(self, self.robot, render)
 		self.electricity_cost  = 4.25*WalkerBaseBulletEnv.electricity_cost

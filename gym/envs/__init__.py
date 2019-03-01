@@ -87,8 +87,8 @@ register(
 register(
     id='Atlas-v0',
     entry_point='gym.envs.custom:AtlasEnv',
-    max_episode_steps=2000,
-    reward_threshold=500.0,
+    max_episode_steps=5000,
+    reward_threshold=5000,
 )
 
 register(
